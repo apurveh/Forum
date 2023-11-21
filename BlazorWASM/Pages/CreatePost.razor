@@ -1,0 +1,100 @@
+﻿@page "/CreatePost"
+@using Domain.Models
+@using HttpClients.ClientInterfaces
+@using Domain.DTOs
+@using BlazorWASM.Services
+@using System.Security.Claims
+@inject IPostService postService
+@inject IUserService userService
+@inject IAuthService authService
+@inject NavigationManager navMgr
+@attribute [Authorize]
+
+ <div class="card">
+     @if (users == null)
+     {
+         <label>Loading users...</label>
+     }
+     else if (!users.Any())
+     {
+         <label>No users, you cannot create a Post without author.</label>
+     }
+     else
+     {
+         <h3>Create Post</h3>
+         <div class="form-group field">
+             <label>Title:</label>
+             <input type="text" @bind="postTitle"/>
+         </div>
+         <div class="form-group field">
+             <label>Description:</label>
+             <input type="text" @bind="postDescription"/>
+         </div>
+         <div class="button-row">
+             @if (!string.IsNullOrEmpty(msg))
+             {
+                 <label style="color: red">@msg</label>
+             }
+             <button @onclick="Create" class="acceptbtn">Create</button>
+         </div>
+     }
+ </div>
+
+@code {
+    private IEnumerable<Post>? posts;
+    private IEnumerable<User> users;
+    private string postTitle = "";
+    private string postDescription = "";
+    private int? userId;
+
+    private string msg = "";
+    
+    protected override async Task OnInitializedAsync()
+    {
+        msg = "";
+        try
+        {
+            users = await userService.GetUser();
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            msg = e.Message;
+        }
+    }
+
+    private async Task Create()
+    {
+        msg = "";
+        
+        if (string.IsNullOrEmpty(postTitle))
+        {
+            msg = "Title cannot be empty!";
+            return;
+        }
+
+        if (string.IsNullOrEmpty(postDescription))
+        {
+            msg = "Description cannot be empty!";
+            return;
+        }
+
+        try
+        {
+            var principal = await authService.GetAuthAsync();
+            users = await userService.GetUser();
+            string? username = principal.FindFirst(ClaimTypes.Name)?.Value;
+
+            var user = await userService.GetUserByUsername(username);
+            
+            PostCreationDto dto = new(user.Id, postTitle,postDescription);
+            await postService.CreateAsync(dto);
+            navMgr.NavigateTo("/");
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            msg = e.Message;
+        }
+    }
+}
